@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Hello</title>
+</head>
+<body>
+	<h1>Hey <span id="name"></span></h1>
+
+	<input type="text" id="name_input" autocomplete="off">
+
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/1.4.8/socket.io.min.js"></script>
+	<script>
+
+
+		(function () {
+
+			var socket = io();
+
+			var $name = $("#name");
+			var $name_input = $("#name_input");
+
+			var bindHTMLEventsCalled = false; // allow certain elements to be bound to only once
+			var bindHTMLEvents = function () {
+				if (!bindHTMLEventsCalled) {
+					$name_input.keyup(function (event) {
+						if (event.which === 13) {
+							var name = $name_input.val();
+							if (name === "") { data.name.remove(); }
+							else { data.name.update(name); }
+							$name_input.val("");
+						}
+					});
+				}
+				bindHTMLEventsCalled = true;
+			};
+
+			var bindSocketEvents = function () {
+				socket.on('PUT name', function (payload) {
+					data.name.set(payload.value);
+				});
+				socket.on('DELETE name', function (payload) {
+					data.name.set("");
+				});
+			}
+
+			var renderHTML = function () {
+				$name.html(data.name.get());
+				bindHTMLEvents();
+			};
+
+			var pullInitialData = function () {
+				data.name.pull();
+			};
+
+			var init = function () {
+				pullInitialData();
+				renderHTML();
+				bindSocketEvents();
+			};
+
+
+			var data = (function () {
+
+				/*** factories ***/
+				var factory = {
+
+					name: {
+						create: function (value) {
+							var o = {};
+							var _value = value || "";
+
+							var handle_socket_response = function (payload) {
+								if (payload.error) {
+									console.log(payload.error + ": " + payload.message);
+								}
+								if (payload.value !== undefined) { o.set(payload.value); }
+							};
+
+							o.pull = function () {
+								socket.emit('GET name', {}, function (payload) {
+									handle_socket_response(payload);
+								});
+							};
+
+							o.update = function (value) {
+								this.set(value);
+								socket.emit('PUT name', {value: value}, function (payload) {
+									handle_socket_response(payload);
+								});
+							};
+
+							o.remove = function () {
+								this.set("");
+								socket.emit('DELETE name', {}, function (payload) {
+									handle_socket_response(payload);
+								});
+							};
+
+							o.set = function (value) {
+								_value = value;
+								renderHTML();
+							};
+
+							o.get = function () {
+								return _value;
+							};
+
+							return o;
+						},
+						copy: function (name) {
+							return this.create(name.get());
+						}
+					},
+				}
+
+				/*** actual data ***/
+				return {
+					name: factory.name.create(),
+				}
+				
+			})();
+
+			init();
+
+		})();
+
+	</script>
+</body>
+</html>

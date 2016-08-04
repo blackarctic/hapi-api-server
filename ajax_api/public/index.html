@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Hello</title>
+</head>
+<body>
+	<h1>Hey <span id="name"></span></h1>
+
+	<input type="text" id="name_input" autocomplete="off">
+
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/1.4.8/socket.io.min.js"></script>
+	<script>
+
+
+		(function () {
+
+			var socket = io();
+
+			var bindHTMLEventsCalled = false; // allow certain elements to be bound to only once
+			var bindHTMLEvents = function () {
+				if (!bindHTMLEventsCalled) {
+					$("#name_input").keyup(function (event) {
+						if (event.which === 13) {
+							var name = $("#name_input").val();
+							if (name !== "") {
+								data.name.update(name);
+								$("#name_input").val("");
+							}
+						}
+					});
+				}
+				bindHTMLEventsCalled = true;
+			};
+
+			var bindSocketEvents = function () {
+				socket.on('name change', function(){
+					data.name.pull();
+				});
+			}
+
+			var renderHTML = function () {
+				$("#name").html(data.name.get());
+				bindHTMLEvents();
+			};
+
+			var pullInitialData = function () {
+				data.name.pull();
+			};
+
+			var init = function () {
+				pullInitialData();
+				renderHTML();
+				bindSocketEvents();
+			};
+
+
+			var data = (function () {
+
+				/*** name functions ***/
+
+				var updateName = function(name) {
+					var save = { name: data.name.val };
+					data.name.val = name;
+					renderHTML();
+					$.ajax({
+						type: 'PUT',
+						dataType: 'json',
+						url: "/name",
+						data: '{"name": "'+name+'"}',
+					}).fail(function () {
+						data.name.val = save.name;
+						renderHTML();
+						console.log("name could not be updated");
+					});
+					socket.emit('name change', { name: data.name.get() });
+				};
+
+				var pullName = function() {
+					$.ajax({
+						type: 'GET',
+						url: "/name",
+					}).done(function (response) {
+						if (response.name !== undefined) {
+							data.name.val = response.name;
+							renderHTML();
+						}
+						else {
+							console.log("name could not be found");
+						}
+					}).fail(function () {
+						console.log("name could not be found");
+					});
+				};
+
+				var getName = function () {
+					return data.name.val;
+				};
+
+				var setName = function (name) {
+					data.name.val = name;
+					renderHTML();
+				}
+
+				/*** actual data ***/
+
+				return {
+					name: {
+						pull: pullName,
+						update: updateName,
+						set: setName,
+						get: getName,
+						val: "...",
+					},
+				}
+				
+			})();
+
+			init();
+
+		})();
+
+	</script>
+</body>
+</html>
